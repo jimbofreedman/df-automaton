@@ -1,0 +1,125 @@
+require "hack/scripts/automaton/Task.rb"
+
+class DigTask < Task
+  attr_reader :coords, :csv
+
+  def initialize(name, dependencies, coords, csv, part)
+    @started = false
+    @finished = false
+    @name = name
+
+    @stringDependencies = dependencies
+
+    @coords = coords
+
+    planfile = File.read("plans/" + csv)
+    #puts "processing"
+    @csv = planfile.map { |l| l.split(";").map {|e|
+      e.strip!
+
+      parts = e.split("_")
+      # puts "==="
+      # puts part
+      # puts parts
+      if (parts.length > 1)
+        # multipart dig
+        if parts[1].to_s == part.to_s
+          #puts "match" + parts[0]
+          parts[0]
+        else
+#          puts "nomatch"
+          ""
+        end
+      else
+        e
+      end
+    } }
+    #  puts "printing"
+    #  @csv.each {|e| puts "LINE"; puts e}
+    #  puts "done"
+  end
+
+  def start()
+    @started = true
+    puts "Starting " + @name
+    @csv.each_with_index { |row, r|
+      row.each_with_index { |col, c|
+        x = $offset[0] + @coords[0] + c
+        y = $offset[1] + @coords[1] + r
+        z = $offset[2] + @coords[2]
+
+        t = df.map_tile_at(x, y, z)
+        s = t.shape_basic
+
+        if (col != "")
+          debug(x.to_s + " " + y.to_s + " " + z.to_s + " : [" + col + "]" + "[" + s.to_s + "]")
+        end
+
+        case col
+        when 'd'
+            t.dig(:Default) if s == :Wall
+        when 'u'; t.dig(:UpStair) if s == :Wall and t.designation.dig != :UpStair
+        when 'j'; t.dig(:DownStair) if (s == :Wall or s == :Floor) and t.designation.dig != :DownStair
+        when 'i'; t.dig(:UpDownStair) if s == :Wall and t.designation.dig != :UpDownStair
+        when 'h'
+          if (t.designation.dig != :Channel)
+            t.dig(:Channel)
+          end
+        when 'r'; t.dig(:Ramp) if s == :Wall and t.designation.dig != :Ramp
+        when 'F'
+          if (t.designation.smooth != 1)
+            debug "Smoothing"
+            block = df.map_block_at(x, y, z)
+            block.flags.designated = true
+            t.designation.smooth = 1 #(t.tiletype == :StonePillar ? 1 : 1) # smooth first, then carve
+          end
+        when 'x'; t.dig(:No)
+        end
+      }
+    }
+  end
+
+  def innerCheckFinished()
+    puts "Checking Finished " + @name
+    @csv.each_with_index { |row, r|
+      row.each_with_index { |col, c|
+        x = $offset[0] + @coords[0] + c
+        y = $offset[1] + @coords[1] + r
+        z = $offset[2] + @coords[2]
+
+        t = df.map_tile_at(x, y, z)
+        #puts x.to_s + " " + y.to_s + " " + z.to_s
+        s = t.shape_basic
+        #puts col
+        #puts s
+        if (col != "")
+          debug(x.to_s + " " + y.to_s + " " + z.to_s + "\t" + col.to_s + "\t" + s.to_s + "\t" + t.tilemat.to_s)
+        end
+
+        case col
+        when 'd'; return false if t.tilemat.to_s != "CONSTRUCTION" && s != :Floor && s != :Open
+        when 'u'; return false if t.tilemat.to_s != "CONSTRUCTION" &&  s != :Stair
+        when 'j'; return false if t.tilemat.to_s != "CONSTRUCTION" &&  s != :Stair
+        when 'i'; return false if t.tilemat.to_s != "CONSTRUCTION" &&  s != :Stair
+        when 'h'; return false if t.tilemat.to_s != "CONSTRUCTION" &&  (s != :Open && s != :Ramp)
+        when 'r'; return false if t.tilemat.to_s != "CONSTRUCTION" &&  s != :Ramp
+        when 'F'; return false if t.shape.to_s != "FORTIFICATION"
+        when 'x';
+        end
+        #puts "next"
+      }
+    }
+    puts @name + " is finished"
+    @started = true
+    @finished = true
+    return @finished
+  end
+
+  def checkFinished()
+    ret = innerCheckFinished()
+    start() if (@started && !@finished) # && @coords[2] >= -2)
+    ret
+  end
+end
+
+puts "Loaded class DigTask"

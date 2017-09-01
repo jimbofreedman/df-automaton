@@ -1,0 +1,81 @@
+class Task
+  attr_reader :name, :started, :finished, :dependencies, :stringDependencies, :priority, :debugging
+  attr_writer :debugging
+
+  def debug(s)
+    @debugging = (@debugging ||= false)
+    if (@debugging == true)
+      puts(s)
+    end
+  end
+
+  def initialize(name, dependencies, priority)
+    @name = name
+    @started = false
+    @finished = false
+    @priority = priority
+
+    @stringDependencies = dependencies || Array.new
+  end
+
+  def linkDependencies()
+    @dependencies = Array.new
+    @stringDependencies.each do |d|
+        if ($tasks[d] == nil)
+          puts "ERROR: Task " + d + " does not exist"
+        else
+          @dependencies << $tasks[d]
+          #puts @name + " depends on " + $tasks[d].name
+        end
+    end
+  end
+
+  def setPriority(priority)
+    #puts @name
+    if (priority >= (@priority || 0))
+      @priority = priority
+      @dependencies.each do |d|
+        d.setPriority(priority + 1)
+      end
+    end
+  end
+
+  def canStart()
+    ret = @dependencies.length == 0 || @dependencies.all? { |e| e.isFinished }
+    #puts "Checking canStart for " + self.name + ": " + ret.to_s
+    return ret
+  end
+
+  def isStarted()
+    return @started
+  end
+
+  def isFinished()
+    return @finished
+  end
+
+  def start()
+    @started = true
+    puts "Starting " + @name
+    checkFinished()
+  end
+
+  def finish()
+    @finished = true
+    puts "Finishing " + @name
+  end
+
+  def checkFinished()
+    #puts "Checking finished for " + @name
+    if @started
+      @finished = true
+      return true
+    end
+  end
+
+  def print()
+    puts("%s%s %5i %s" % [@started ? "S" : " ", @finished ? "F" : " ", @priority, @name])
+  end
+end
+
+puts "Loaded class Task"
